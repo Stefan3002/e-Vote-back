@@ -1,4 +1,5 @@
 from django.db import models
+from django.template.defaultfilters import slugify
 
 
 class AppUser(models.Model):
@@ -9,3 +10,20 @@ class AppUser(models.Model):
 
     def __str__(self):
         return self.username + ' ' + self.public_key
+
+
+class Ballot(models.Model):
+    title = models.CharField(max_length=50)
+    description = models.CharField(max_length=100)
+    year = models.IntegerField()
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
+    eligible_people = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=50, default='')
+
+    def __str__(self):
+        return f'{self.title}, {self.year}'
+
+    def save(self, *args, **kwargs):
+        self.slug = slugify(self.title)
+        return super(Ballot, self).save(*args, **kwargs)

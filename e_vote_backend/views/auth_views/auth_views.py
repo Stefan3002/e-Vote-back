@@ -1,11 +1,10 @@
 import os
 
+import ecdsa as ecdsa
+from ecdsa import SECP256k1
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-import gmpy2
-from ecdsa import SECP256k1
-import ecdsa as ecdsa
 
 from e_vote_backend.models import AppUser
 from e_vote_backend.validations.auth_validations import auth_validator
@@ -23,7 +22,7 @@ def generateRandomNumber(curve):
     return ecdsa.util.randrange_from_seed__trytryagain(seed, curve.order)
 
 
-def performAuth(data):
+def performAuth(data, return_user=False):
     try:
         username = data['username']
         try:
@@ -90,6 +89,8 @@ def performAuth(data):
         if user.challenge_burnt is False and target.x() == V.x() and target.y() == V.y():
             user.challenge_burnt = True
             user.save()
+            if return_user:
+                return Response({'data': 'OK'}, status=status.HTTP_200_OK), user
             return Response({'data': 'OK'}, status=status.HTTP_200_OK)
         else:
             if user.challenge_burnt is True:
