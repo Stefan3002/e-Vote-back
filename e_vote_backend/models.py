@@ -5,13 +5,18 @@ from django.template.defaultfilters import slugify
 class AppUser(models.Model):
     username = models.CharField(max_length=50)
     public_key = models.CharField(max_length=210)
-    challenge_issued = models.CharField(max_length=50)
+    challenge_issued = models.CharField(max_length=100)
     challenge_burnt = models.BooleanField(default=False)
-
+    email = models.EmailField(max_length=50)
     def __str__(self):
         return self.username + ' ' + self.public_key
 
 
+class Otp(models.Model):
+    user = models.ForeignKey(AppUser, on_delete=models.CASCADE, related_name='otp')
+    otp = models.CharField(max_length=6)
+    valid = models.BooleanField(default=True)
+    generation_date = models.DateTimeField(auto_now_add=True)
 class Ballot(models.Model):
     title = models.CharField(max_length=50)
     description = models.CharField(max_length=100)

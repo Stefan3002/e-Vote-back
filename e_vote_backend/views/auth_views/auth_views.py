@@ -6,7 +6,9 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from e_vote_backend.models import AppUser
+from e_vote_backend.email_templates import format_otp_email, otp_message
+from e_vote_backend.emails import send_email
+from e_vote_backend.models import AppUser, Otp
 from e_vote_backend.validations.auth_validations import auth_validator
 
 public_params = {
@@ -20,6 +22,28 @@ def generateRandomNumber(curve):
     # Where t is the number of bits of the challenge chosen by the server
     seed = os.urandom(80 // 8)
     return ecdsa.util.randrange_from_seed__trytryagain(seed, curve.order)
+
+
+def generateOTP(user):
+    try:
+        # TODO: Use standard TOTP https://datatracker.ietf.org/doc/html/rfc6238#section-4.1
+        generated_otp_value = 234561
+        try:
+            # Get the last created OTP if it exists
+            otp = Otp.objects.filter(user=user)
+            otp.delete()
+        except Otp.DoesNotExist:
+            pass
+        # TODO: Hash the OTP
+        otp = Otp(user=user, otp=generated_otp_value)
+        format_otp_email(user.username, generated_otp_value)
+        send_email(receiver_email=user.email, message=otp_message)
+
+        otp.save()
+        return 0
+    except Exception as e:
+        print(e)
+        return -1
 
 
 def performAuth(data, return_user=False):
@@ -91,7 +115,11 @@ def performAuth(data, return_user=False):
             user.save()
             if return_user:
                 return Response({'data': 'OK'}, status=status.HTTP_200_OK), user
-            return Response({'data': 'OK'}, status=status.HTTP_200_OK)
+            # MFA: OTP generation and sending
+            if generateOTP(user) == 0:
+                return Response({'data': 'OTP sent'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'data': 'Error sending OTP'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
             if user.challenge_burnt is True:
                 print('Challenge already burnt')
