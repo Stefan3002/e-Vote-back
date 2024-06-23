@@ -17,6 +17,7 @@ class Otp(models.Model):
     otp = models.CharField(max_length=6)
     valid = models.BooleanField(default=True)
     generation_date = models.DateTimeField(auto_now_add=True)
+    verified = models.BooleanField(default=False)
 class Ballot(models.Model):
     title = models.CharField(max_length=50)
     description = models.CharField(max_length=100)

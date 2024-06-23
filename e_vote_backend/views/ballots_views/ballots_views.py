@@ -14,6 +14,7 @@ class all_ballots(APIView):
             # Zero trust policy, authenticate again and again
             (res, user) = performAuth(request.data, True)
             if res.status_code != 200:
+                print('NO AUTH!')
                 return res
 
             # Identity confirmed from here on

@@ -1,6 +1,8 @@
 import os
+from datetime import timedelta
 
 import ecdsa as ecdsa
+from django.utils import timezone
 from ecdsa import SECP256k1
 from rest_framework import status
 from rest_framework.response import Response
@@ -30,7 +32,7 @@ def generateOTP(user):
         generated_otp_value = 234561
         try:
             # Get the last created OTP if it exists
-            otp = Otp.objects.filter(user=user)
+            otp = Otp.objects.get(user=user)
             otp.delete()
         except Otp.DoesNotExist:
             pass
@@ -113,13 +115,49 @@ def performAuth(data, return_user=False):
         if user.challenge_burnt is False and target.x() == V.x() and target.y() == V.y():
             user.challenge_burnt = True
             user.save()
-            if return_user:
-                return Response({'data': 'OK'}, status=status.HTTP_200_OK), user
+
             # MFA: OTP generation and sending
-            if generateOTP(user) == 0:
-                return Response({'data': 'OTP sent'}, status=status.HTTP_200_OK)
+
+            not_found = False
+            try:
+                # Get the last created OTP if it exists
+                registered_otp = Otp.objects.get(user=user)
+            except Otp.DoesNotExist:
+                registered_otp = None
+                not_found = True
+
+            # Only if the OTP was not verified yet
+            # Or if the OTP was invalidated for some reason
+            # Generate another OTP or a brand new one
+            if (not_found or registered_otp.valid is False
+                    or registered_otp.generation_date < (timezone.now() - timedelta(minutes=30))):
+                if generateOTP(user) == 0:
+                    return Response({'data': 'OTP sent', 'otp': '1'}, status=status.HTTP_401_UNAUTHORIZED)
+                else:
+                    return Response({'data': 'Error sending OTP'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
-                return Response({'data': 'Error sending OTP'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                if registered_otp.verified is False and registered_otp.valid is True:
+                    if return_user:
+                        return Response({'data': 'OTP already sent', 'otp': '1'},
+                                        status=status.HTTP_401_UNAUTHORIZED), user
+                    else:
+                        return Response({'data': 'OTP already sent', 'otp': '1'}, status=status.HTTP_401_UNAUTHORIZED)
+                # The OTP was already verified and is valid and it has not expired
+                if (registered_otp.verified is True and registered_otp.valid is True
+                        and registered_otp.generation_date >= (timezone.now() - timedelta(minutes=30))):
+                    if return_user:
+                        return Response({'data': 'OK'}, status=status.HTTP_200_OK), user
+                    else:
+                        return Response({'data': 'OK'}, status=status.HTTP_200_OK)
+                else:
+                    # OTP is not valid or expired
+                    if return_user:
+                        return Response({'data': 'OTP not valid or expired!', 'otp': '-1'},
+                                        status=status.HTTP_401_UNAUTHORIZED), user
+                    else:
+                        return Response({'data': 'OTP not valid or expired!', 'otp': '-1'},
+                                        status=status.HTTP_401_UNAUTHORIZED)
+
         else:
             if user.challenge_burnt is True:
                 print('Challenge already burnt')
@@ -154,3 +192,61 @@ class log_in(APIView):
     def post(self, request):
         data = request.data
         return performAuth(data)
+
+
+class otp(APIView):
+    def post(self, request):
+        try:
+            data = request.data
+            otp = data['otp']
+
+            if auth_validator['otp']["inputNull"] is False and (not otp):
+                return Response({'OK': False, 'data': 'OTP is missing!'},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            username = data['username']
+            # TODO: Validate the username
+
+            try:
+                user = AppUser.objects.get(username=username)
+            except AppUser.DoesNotExist:
+                return Response({'data': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+            user = AppUser.objects.get(username=username)
+
+            try:
+                # Get the last created OTP if it exists
+                registered_otp = Otp.objects.get(user=user)
+            except Otp.DoesNotExist:
+                # Impossible, as the user should have requested an OTP before, when he / she
+                # requested the authentication
+                return Response({'data': 'OTP mismatch!'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # If the OTP was not verified yet
+            if registered_otp.verified is False:
+                if otp == registered_otp.otp:
+                    # OTP was verified
+                    registered_otp.verified = True
+                    registered_otp.save()
+                    # Tell the client to request the authentication AGAIN!
+                    # This is to prevent cases where only the OTP verification
+                    # Could unexpectedly log the user in with no prior NIZKP verification
+                    return Response({'data': 'OK!'}, status=status.HTTP_200_OK)
+                else:
+                    # OTP was not verified
+                    registered_otp.verified = False
+                    registered_otp.save()
+                    return Response({'data': 'Incorrect OTP provided!'}, status=status.HTTP_401_UNAUTHORIZED)
+            else:
+                # Could be a replay attack here, so just invalidate the OTP and
+                # tell the client to request the authentication AGAIN!
+                registered_otp.verified = False
+                registered_otp.valid = False
+                registered_otp.save()
+                # TODO: log possible replay attack
+                return Response({'data': 'OTP already verified!'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+        except Exception as e:
+            print(e)
+            return Response({'data': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -19,6 +19,10 @@ auth_validator = {
             "inputMin": 10,
             "inputNull": False
         },
+    "otp": {
+        "inputMin": 10,
+        "inputNull": False
+    }
 
 }
 
