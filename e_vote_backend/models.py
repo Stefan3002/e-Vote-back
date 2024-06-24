@@ -18,6 +18,8 @@ class Otp(models.Model):
     valid = models.BooleanField(default=True)
     generation_date = models.DateTimeField(auto_now_add=True)
     verified = models.BooleanField(default=False)
+
+
 class Ballot(models.Model):
     title = models.CharField(max_length=50)
     description = models.CharField(max_length=100)
@@ -25,7 +27,7 @@ class Ballot(models.Model):
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
     eligible_people = models.CharField(max_length=100)
-    slug = models.SlugField(max_length=50, default='')
+    slug = models.SlugField(max_length=50, default='', unique=True, null=True, blank=True)
 
     def __str__(self):
         return f'{self.title}, {self.year}'
@@ -33,3 +35,17 @@ class Ballot(models.Model):
     def save(self, *args, **kwargs):
         self.slug = slugify(self.title)
         return super(Ballot, self).save(*args, **kwargs)
+
+
+class BallotSection(models.Model):
+    title = models.CharField(max_length=50)
+    description = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=50, default='', unique=True, null=True, blank=True)
+    ballot = models.ForeignKey(Ballot, on_delete=models.CASCADE, related_name='sections')
+
+    def __str__(self):
+        return f'{self.title}'
+
+    def save(self, *args, **kwargs):
+        self.slug = slugify(self.title)
+        return super(BallotSection, self).save(*args, **kwargs)
