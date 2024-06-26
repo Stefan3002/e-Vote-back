@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from e_vote_backend.models import Ballot, BallotSection
+from e_vote_backend.models import Ballot, BallotSection, BallotSectionOption
 
 
 class BallotSectionsSerializer(serializers.ModelSerializer):
@@ -9,6 +9,10 @@ class BallotSectionsSerializer(serializers.ModelSerializer):
         fields = ['title', 'slug', 'description']
 
 
+class BallotSectionOptionsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BallotSectionOption
+        fields = ['title', 'slug', 'description', 'option_id']
 class BallotSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ballot

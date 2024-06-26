@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 
 from e_vote_backend.models import Ballot
 from e_vote_backend.security_utils import encrypt_data_user_pk
-from e_vote_backend.serializers import BallotSerializer, BallotSectionsSerializer
+from e_vote_backend.serializers import BallotSerializer, BallotSectionsSerializer, BallotSectionOptionsSerializer
 from e_vote_backend.validations.ballot_validations import ballot_validator
 from e_vote_backend.views.auth_views.auth_views import performAuth
 
@@ -30,7 +30,7 @@ class all_ballots(APIView):
 
 
 class ballot_sections(APIView):
-    def post(self, request):
+    def post(self, request, slug):
         try:
             # Zero trust policy, authenticate again and again
             (res, user) = performAuth(request.data, True)
@@ -39,7 +39,7 @@ class ballot_sections(APIView):
                 return res
 
             # Identity confirmed from here on
-            slug = request.data['slug']
+
             if ballot_validator['slug']["inputNull"] is False and (not slug):
                 return Response({'OK': False, 'data': 'Slug of ballot is missing!'},
                                 status=status.HTTP_400_BAD_REQUEST)
@@ -50,6 +50,37 @@ class ballot_sections(APIView):
             serialized_ballot_sections = BallotSectionsSerializer(ballot_sections, many=True)
             # TODO: Encrypt the date with the user's public key to prevent MitM attacks
             encrypted_data = encrypt_data_user_pk(serialized_ballot_sections.data, user.public_key)
+            return Response({'data': encrypted_data}, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({'data': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ballot_section_options(APIView):
+    def post(self, request, slug, section_slug):
+        try:
+            # Zero trust policy, authenticate again and again
+            (res, user) = performAuth(request.data, True)
+            if res.status_code != 200:
+                print('NO AUTH!')
+                return res
+
+            # Identity confirmed from here on
+            if ballot_validator['slug']["inputNull"] is False and (not slug):
+                return Response({'OK': False, 'data': 'Slug of ballot is missing!'},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            if ballot_validator['slug']["inputNull"] is False and (not section_slug):
+                return Response({'OK': False, 'data': 'Slug of section is missing!'},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            ballot = Ballot.objects.get(slug=slug)
+            ballot_section = ballot.sections.get(slug=section_slug)
+            ballot_section_options = ballot_section.options.all()
+
+            serialized_ballot_section_options = BallotSectionOptionsSerializer(ballot_section_options, many=True)
+            # TODO: Encrypt the date with the user's public key to prevent MitM attacks
+            encrypted_data = encrypt_data_user_pk(serialized_ballot_section_options.data, user.public_key)
             return Response({'data': encrypted_data}, status=status.HTTP_200_OK)
         except Exception as e:
             print(e)
