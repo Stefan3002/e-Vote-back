@@ -19,7 +19,6 @@ class Otp(models.Model):
     generation_date = models.DateTimeField(auto_now_add=True)
     verified = models.BooleanField(default=False)
 
-
 class Ballot(models.Model):
     title = models.CharField(max_length=50)
     description = models.CharField(max_length=100)
@@ -64,3 +63,12 @@ class BallotSectionOption(models.Model):
     def save(self, *args, **kwargs):
         self.slug = slugify(self.title)
         return super(BallotSectionOption, self).save(*args, **kwargs)
+
+
+class Vote(models.Model):
+    user = models.ForeignKey(AppUser, on_delete=models.CASCADE, related_name='votes')
+    option = models.ForeignKey(BallotSectionOption, on_delete=models.CASCADE, related_name='votes')
+    date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.user} for {self.option}'
